@@ -11,7 +11,7 @@ output: html_document
 
 -   Package installation is done only once per package on your system.
 
-```{r install_packages, message=FALSE, warning=FALSE}
+```r
 # Install BiocManager if not already installed
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
