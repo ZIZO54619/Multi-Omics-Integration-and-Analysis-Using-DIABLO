@@ -28,7 +28,7 @@ install.packages("ragg", dependencies = TRUE, update = FALSE)
 
 -   This needs to be done in every R session where you want to use the packages.
 
-```{r load_libraries, message=FALSE, warning=FALSE}
+```r
 library(ragg)         # Graphics package
 library(mixOmics)    # For multivariate analysis, including DIABLO
 library(tools)        # For file path manipulation
@@ -39,7 +39,7 @@ library(ggplot2)     # For creating plots
 
 -   This section loads the data from CSV files, preprocesses it, and structures it for the DIABLO model.
 
-```{r load_data, message=FALSE, warning=FALSE}
+```r
 # Set the working directory
 setwd(r"{D:\Multi-Omics\TCGA}")
 
@@ -80,7 +80,7 @@ names(data_set) # Print the names of the data_set list
 
 ## Extract the training data from the loaded data set.
 
-```{r extract_training_data}
+```r
 # Determine the number of omic views
 number_of_view <- length(data_set$data.train) - 1
 X <- list() # Initialize a list to store the omic data
@@ -95,14 +95,14 @@ names(X) # Print the names of the views
 
 ## Extract and summarize the subtype data from the training set.
 
-```{r extract_subtype_data}
+```r
 Y <- data_set$data.train$subtype # Get subtype factor
 summary(Y) # Provide a summary of the subtype factor
 ```
 
 ## Define the design matrix for DIABLO, controlling the level of supervision.
 
-```{r define_design_matrix}
+```r
 # Set design matrix for DIABLO model, this supervises the correlation. A higher value leads to stronger supervision.
 design <- matrix(0.1, ncol = length(X), nrow = length(X),
                  dimnames = list(names(X), names(X)))
@@ -113,7 +113,7 @@ design # Print the design matrix
 
 ## This section explores the correlation structure between omic views using unsupervised PLS.
 
-```{r unsupervised_pls}
+```r
 # Unsupervised PLS between mRNA and protein
 res1.pls.tcga <- pls(X$mrna, X$protein, ncomp = 1)
 cor(res1.pls.tcga$variates$X, res1.pls.tcga$variates$Y) # Check correlation of components
@@ -129,7 +129,7 @@ cor(res3.pls.tcga$variates$X, res3.pls.tcga$variates$Y) # Check correlation of c
 
 ## Build the DIABLO model using the prepared data and specified parameters.
 
-```{r build_diablo_model}
+```r
 # Create a block.plsda model
 diablo.tcga <- block.plsda(X, Y, ncomp = 5, design = design)
 plot(diablo.tcga) # plot of the diablo model
@@ -137,7 +137,7 @@ plot(diablo.tcga) # plot of the diablo model
 
 ## Evaluate the DIABLO model performance through cross-validation.
 
-```{r evaluate_model_performance}
+```r
 # Set seed for reproducibility
 set.seed(123)
 # Model performance using cross-validation
@@ -146,19 +146,19 @@ perf.diablo.tcga = perf(diablo.tcga, validation = 'Mfold', folds = 10, nrepeat =
 
 ## Visualize error rates based on weighted vote.
 
-```{r plot_error_rates}
+```r
 plot(perf.diablo.tcga) # Plot of the error rates
 ```
 
 ## Print the optimal number of components chosen.
 
-```{r optimal_ncomp}
+```r
 perf.diablo.tcga$choice.ncomp$WeightedVote # output the weighted vote error
 ```
 
 ## Automatically select the optimal number of components based on cross-validation results.
 
-```{r select_ncomp}
+```r
 # Select the optimal number of components based on the performance assessment
 ncomp <- perf.diablo.tcga$choice.ncomp$WeightedVote["Overall.BER", "centroids.dist"]
 ncomp # print the optimal number of components
@@ -166,7 +166,7 @@ ncomp # print the optimal number of components
 
 ## Tune the number of variables to select per omic view.
 
-```{r tune_keepX}
+```r
 # Define the range of variables to test
 set.seed(123)
 test.keepX <- list(mrna = c(5:9, seq(10, 25, 5)),
@@ -185,7 +185,7 @@ list.keepX # Print the optimal features
 
 ## Hard code the chosen ncomp and keepX parameters
 
-```{r custom_keepX}
+```r
 # Define custom keepX parameters if you don't want to use the tuned ones
 list.keepX <- list( mrna = c(8, 25), mirna = c(14,5), protein = c(10, 5))
 list.keepX # Print the customized keepX values
@@ -193,7 +193,7 @@ list.keepX # Print the customized keepX values
 
 ## Build the final DIABLO model using the optimal parameters.
 
-```{r final_diablo_model}
+```r
 # Build the final model using the optimal number of components and features selected
 diablo.tcga <- block.splsda(X, Y, ncomp = ncomp, 
                             keepX = list.keepX, design = design)
@@ -201,7 +201,7 @@ diablo.tcga <- block.splsda(X, Y, ncomp = ncomp,
 
 ## Output the loadings from the final DIABLO model into CSV files.
 
-```{r export_loadings}
+```r
 # Output the loadings for each omic layer
 write.csv(diablo.tcga$loadings$mRNA,"loadings-mRNA")
 write.csv(diablo.tcga$loadings$miRNA,"loadings-miRNA")
@@ -211,13 +211,13 @@ write.csv(diablo.tcga$loadings$Y,"loadings-Y")
 
 ## Print the design matrix for the DIABLO model.
 
-```{r print_design_matrix}
+```r
 diablo.tcga$design # Print the design matrix
 ```
 
 ## Extract and display the selected variables for each component.
 
-```{r select_vars_by_comp}
+```r
 # Select and display variables of the mrna data for component 2
 selectVar(diablo.tcga, block = 'mrna', comp = 2)
 ```
@@ -226,7 +226,7 @@ selectVar(diablo.tcga, block = 'mrna', comp = 2)
 
 ## Visualize sample distributions to understand correlations and subtype discrimination.
 
-```{r sample_plots}
+```r
 # Plot samples using first two components
 plotDiablo(diablo.tcga, ncomp = 1) # sample plot
 
@@ -241,7 +241,7 @@ plotArrow(diablo.tcga, ind.names = FALSE, legend = TRUE,
 
 ## Visualize variable contributions and correlations through correlation circles.
 
-```{r variable_plots}
+```r
 # Plot variables using first two components
 plotVar(diablo.tcga, var.names = FALSE, style = 'graphics', legend = TRUE, 
         pch = c(16, 17, 15), cex = c(2,2,2), 
@@ -264,7 +264,7 @@ plotLoadings(diablo.tcga, comp = 1, contrib = 'max', method = 'median')#loading 
 
 ## Generate and save a heatmap of DIABLO results.
 
-```{r heatmap_plot}
+```r
 pdf("cimDiablo_plot.pdf") # Plot the heatmap of model results and save it into a PDF file
 cimDiablo(diablo.tcga, color.blocks = c('darkorchid', 'brown1', 'lightgreen'),
           comp = 1, margin = c(8, 20), legend.position = "right")
@@ -277,7 +277,7 @@ dev.off() # Close the PDF device
 
 ## Evaluate the model performance with cross-validation.
 
-```{r performance_evaluation}
+```r
 set.seed(123)
 perf.diablo.tcga <- perf(diablo.tcga,  validation = 'Mfold', folds = 10, 
                          nrepeat = 10, dist = 'centroids.dist')
@@ -287,11 +287,11 @@ perf.diablo.tcga <- perf(diablo.tcga,  validation = 'Mfold', folds = 10,
 
 ## Display the majority vote error rate and the weighted vote error rate.
 
-```{r error_rates}
+```r
 perf.diablo.tcga$MajorityVote.error.rate # output MajorityVote error rate
 ```
 
-```{r weighted_error_rates}
+```r
 perf.diablo.tcga$WeightedVote.error.rate # output WeightedVote error rate
 ```
 
@@ -299,7 +299,7 @@ perf.diablo.tcga$WeightedVote.error.rate # output WeightedVote error rate
 
 ## Calculate the AUC for the specified block and component.
 
-```{r calculate_auc}
+```r
 auc.diablo.tcga <- auroc(diablo.tcga, roc.block = "protein", roc.comp = 1,
                    print = FALSE) # Calculate the AUC for protein block in component 1
 ```
@@ -308,7 +308,7 @@ auc.diablo.tcga <- auroc(diablo.tcga, roc.block = "protein", roc.comp = 1,
 
 ## Prepare the test data from the loaded data set.
 
-```{r prepare_test_data}
+```r
 # Extract the testing data
 data.test.tcga <- list(mrna = data_set$data.test$mrna, 
                        mirna = data_set$data.test$mirna)
@@ -318,7 +318,7 @@ data.test.tcga <- list(mrna = data_set$data.test$mrna,
 
 ## Use the DIABLO model to predict class labels for the test data set.
 
-```{r predict_test_data}
+```r
 predict.diablo.tcga <- predict(diablo.tcga, newdata = data.test.tcga) # predict test data set using the final diablo model
 ```
 
@@ -326,7 +326,7 @@ predict.diablo.tcga <- predict(diablo.tcga, newdata = data.test.tcga) # predict 
 
 ## Display the confusion matrix for the model performance.
 
-```{r confusion_matrix}
+```r
 # calculate confusion matrix
 confusion.mat.tcga <- get.confusion_matrix(truth = data_set$data.test$subtype, 
                                            predicted = predict.diablo.tcga$WeightedVote$centroids.dist[,2])
@@ -337,6 +337,6 @@ confusion.mat.tcga # output the confusion matrix
 
 ## Display the Balanced Error Rate (BER) for the model.
 
-```{r balanced_error_rate}
+```r
 get.BER(confusion.mat.tcga) # Calculate and output the BER
 ```
