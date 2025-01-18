@@ -1,9 +1,4 @@
----
-title: 'Diaplo Model'
-author: "El_zoz"
-date: "2024-08-13"
-output: html_document
----
+# Multi-Omics-Integration-and-Analysis-Using-DIABLO
 
 ## Install and Load Required Packages
 
