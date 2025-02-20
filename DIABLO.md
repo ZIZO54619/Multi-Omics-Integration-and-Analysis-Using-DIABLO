@@ -268,7 +268,7 @@ dev.off() # Close the PDF device
 
 # Model Performance Evaluation and Prediction
 
-## Model Performance Evaluation
+## Model Performance Evaluation.
 
 ## Evaluate the model performance with cross-validation.
 
