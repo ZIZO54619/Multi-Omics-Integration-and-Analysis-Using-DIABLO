@@ -1,5 +1,4 @@
+mixOmics
 ggplot2
-dplyr
-tidyverse
-data.table
-stringr
+tools
+ragg
