@@ -20,7 +20,7 @@ library(ggplot2)     # For creating plots
 
 ## ----load_data, message=FALSE, warning=FALSE--------------------------------
 # Set the working directory
-setwd(r"{D:\Multi-Omics\TCGA}")
+setwd(r"{..\Dataset\TCGA}")
 
 # List directories in the working directory
 folders <- list.dirs(path = ".", full.names = TRUE, recursive = FALSE)
