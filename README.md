@@ -29,9 +29,31 @@ install.packages("ragg", dependencies = TRUE, update = FALSE)
 ```
 
 ## Data Preparation
-1. **Set the working directory:** The dataset should be stored in `../Dataset/TCGA/`.
-2. **Ensure data format:** Each subdirectory should contain CSV files with omics data.
-3. **Data loading process:** The script automatically reads the CSV files, processes them into matrices, and extracts subtype labels if available.
+The script resolves the data root in this order:
+1. `--data-root=/path/to/Dataset/TCGA` (if provided as a command-line argument)
+2. Default: `<current working directory>/Dataset/TCGA`
+
+Expected structure:
+
+```text
+Dataset/TCGA/
+  data.train/
+    mrna.csv
+    mirna.csv
+    protein.csv
+    subtype.csv
+  data.test/
+    mrna.csv
+    mirna.csv
+    protein.csv
+    subtype.csv
+```
+
+Subtype resolution contract:
+- Preferred: `subtype.csv` with one of these columns: `Label`, `subtype`, or `x`
+- Fallback: a `Label` column inside one omics block file
+
+The script fails fast with explicit errors if required folders, blocks, or labels are missing.
 
 ## Analysis Workflow
 ### 1. Load Required Libraries
@@ -73,18 +95,23 @@ library(ggplot2)
 - **Loading plots:** `plotLoadings()`
 
 ## Running the Analysis
-To execute the workflow, simply run the R script in an R environment:
-```r
-source("your_script.R")
+Run from the repository root:
+```bash
+Rscript DIABLO.R
 ```
-Make sure the dataset is correctly placed in the specified directory before running the script.
+
+Or pass a custom dataset root:
+```bash
+Rscript DIABLO.R --data-root=/absolute/path/to/Dataset/TCGA
+```
+
+The script does not install packages at runtime; it performs fail-fast dependency checks and exits with a clear message if packages are missing.
 
 ## Output
 - Model performance evaluation
 - Selected variables from each omic dataset
 - Visualizations of sample and variable distributions
-- Loadings exported as CSV files
+- Loadings exported as CSV files inside `outputs/` using deterministic names: `loadings-<block>.csv`
 
 ## Contact
 For questions or issues, please reach out to the project contributors or refer to the `mixOmics` documentation: [https://mixomics.org](https://mixomics.org).
-

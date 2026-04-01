@@ -1,17 +1,16 @@
-## ----install_packages, message=FALSE, warning=FALSE-------------------------
-# Install BiocManager if not already installed
-if (!requireNamespace("BiocManager", quietly = TRUE))
-  install.packages("BiocManager")
-
-# Install mixOmics package
-BiocManager::install("mixOmics", update = FALSE, ask = FALSE)
-
-# Set CRAN repository and install ragg package
-options(repos = c(CRAN = "https://cran.r-project.org"))
-install.packages("ragg", dependencies = TRUE, update = FALSE)
-
-
 ## ----load_libraries, message=FALSE, warning=FALSE---------------------------
+required_packages <- c("ragg", "mixOmics", "ggplot2")
+missing_packages <- required_packages[!vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing_packages) > 0) {
+  stop(
+    sprintf(
+      "Missing required package(s): %s. Install them before running this script.",
+      paste(missing_packages, collapse = ", ")
+    ),
+    call. = FALSE
+  )
+}
+
 library(ragg)         # Graphics package
 library(mixOmics)    # For multivariate analysis, including DIABLO
 library(tools)        # For file path manipulation
@@ -19,11 +18,78 @@ library(ggplot2)     # For creating plots
 
 
 ## ----load_data, message=FALSE, warning=FALSE--------------------------------
-# Set the working directory
-setwd(r"{..\Dataset\TCGA}")
+resolve_data_root <- function() {
+  args <- commandArgs(trailingOnly = TRUE)
+  data_root_arg <- args[grepl("^--data-root=", args)]
+  if (length(data_root_arg) > 0) {
+    return(sub("^--data-root=", "", data_root_arg[[1]]))
+  }
+  return(file.path(getwd(), "Dataset", "TCGA"))
+}
+
+extract_subtype <- function(folder_data, folder_name) {
+  subtype <- NULL
+  subtype_file <- file.path(folder_name, "subtype.csv")
+
+  if ("subtype" %in% names(folder_data)) {
+    subtype_df <- as.data.frame(folder_data$subtype)
+    label_col <- intersect(c("Label", "subtype", "x"), colnames(subtype_df))
+    if (length(label_col) == 0) {
+      stop(sprintf("'%s/subtype.csv' exists but has no supported label column (Label/subtype/x).", folder_name), call. = FALSE)
+    }
+    subtype <- factor(subtype_df[[label_col[[1]]]])
+    folder_data$subtype <- NULL
+  } else {
+    for (nm in names(folder_data)) {
+      block_df <- as.data.frame(folder_data[[nm]])
+      if ("Label" %in% colnames(block_df)) {
+        subtype <- factor(block_df$Label)
+        folder_data[[nm]] <- as.matrix(block_df[, setdiff(colnames(block_df), "Label"), drop = FALSE])
+        break
+      }
+    }
+  }
+
+  if (is.null(subtype)) {
+    stop(
+      sprintf(
+        "Could not resolve subtype labels for '%s'. Add '%s' with one of [Label, subtype, x] columns or include a 'Label' column in one block file.",
+        folder_name,
+        subtype_file
+      ),
+      call. = FALSE
+    )
+  }
+
+  folder_data$subtype <- subtype
+  folder_data
+}
+
+data_root <- resolve_data_root()
+if (!dir.exists(data_root)) {
+  stop(sprintf("Data root not found: %s", data_root), call. = FALSE)
+}
+
+output_dir <- file.path(getwd(), "outputs")
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
+required_folders <- c("data.train", "data.test")
+missing_folders <- required_folders[!dir.exists(file.path(data_root, required_folders))]
+if (length(missing_folders) > 0) {
+  stop(
+    sprintf(
+      "Missing required folder(s) under '%s': %s",
+      data_root,
+      paste(missing_folders, collapse = ", ")
+    ),
+    call. = FALSE
+  )
+}
 
 # List directories in the working directory
-folders <- list.dirs(path = ".", full.names = TRUE, recursive = FALSE)
+folders <- list.dirs(path = data_root, full.names = TRUE, recursive = FALSE)
 data_set <- list() # Initialize an empty list to store data
 
 # Loop through each folder (representing a data type)
@@ -31,30 +97,31 @@ for (folder in folders) {
   folder_name <- basename(folder)  # Extract folder name
   folder_files <- list.files(path = folder, pattern = "\\.csv$", full.names = TRUE)  # List all CSV files in the folder
   folder_data <- list()  # Initialize list to hold data from each file
-  subtype <- NULL # Initialize the subtype vector
-  
   # Loop through each CSV file
   for (file in folder_files) {
     df <- read.csv(file, header = TRUE, row.names = 1) # Read csv data into dataframe
     name <- tools::file_path_sans_ext(basename(file)) # Extract file name without extension
-    
-    # Check if there is a 'Label' column, if so, convert to factor and remove it from dataframe
-    if ("Label" %in% colnames(df)) {
-        Label <- df$Label 
-        subtype <- factor(Label)
-        df <- df[, -which(names(df) == "Label")]
-        df <- sapply(df, as.numeric) # Convert all values in df to numeric
-    }
+
     row_names <- rownames(df)
     df_matrix <- as.matrix(df)
     rownames(df_matrix) <- row_names # set row names for matrix
     folder_data[[name]] <- df_matrix # add matrix to folder_data list
   }
-  folder_data$subtype <- subtype # add subtype factor
+  folder_data <- extract_subtype(folder_data, folder_name)
   data_set[[folder_name]] <- folder_data # add folder data to main data_set list
 }
 
 names(data_set) # Print the names of the data_set list
+
+required_blocks <- c("mrna", "mirna", "protein")
+missing_train_blocks <- setdiff(required_blocks, names(data_set$data.train))
+missing_test_blocks <- setdiff(required_blocks, names(data_set$data.test))
+if (length(missing_train_blocks) > 0) {
+  stop(sprintf("Missing training block(s): %s", paste(missing_train_blocks, collapse = ", ")), call. = FALSE)
+}
+if (length(missing_test_blocks) > 0) {
+  stop(sprintf("Missing testing block(s): %s", paste(missing_test_blocks, collapse = ", ")), call. = FALSE)
+}
 
 
 ## ----extract_training_data--------------------------------------------------
@@ -156,10 +223,10 @@ diablo.tcga <- block.splsda(X, Y, ncomp = ncomp,
 
 ## ----export_loadings--------------------------------------------------------
 # Output the loadings for each omic layer
-write.csv(diablo.tcga$loadings$mRNA,"loadings-mRNA")
-write.csv(diablo.tcga$loadings$miRNA,"loadings-miRNA")
-write.csv(diablo.tcga$loadings$protein,"loadings-protein")
-write.csv(diablo.tcga$loadings$Y,"loadings-Y")
+for (block_name in names(diablo.tcga$loadings)) {
+  output_file <- file.path(output_dir, paste0("loadings-", block_name, ".csv"))
+  write.csv(diablo.tcga$loadings[[block_name]], output_file)
+}
 
 
 ## ----print_design_matrix----------------------------------------------------
@@ -234,10 +301,32 @@ auc.diablo.tcga <- auroc(diablo.tcga, roc.block = "protein", roc.comp = 1,
 ## ----prepare_test_data------------------------------------------------------
 # Extract the testing data
 data.test.tcga <- list(mrna = data_set$data.test$mrna, 
-                       mirna = data_set$data.test$mirna)
+                       mirna = data_set$data.test$mirna,
+                       protein = data_set$data.test$protein)
 
 
 ## ----predict_test_data------------------------------------------------------
+expected_prediction_blocks <- names(diablo.tcga$X)
+provided_prediction_blocks <- names(data.test.tcga)
+missing_prediction_blocks <- setdiff(expected_prediction_blocks, provided_prediction_blocks)
+unexpected_prediction_blocks <- setdiff(provided_prediction_blocks, expected_prediction_blocks)
+
+if (length(missing_prediction_blocks) > 0 || length(unexpected_prediction_blocks) > 0) {
+  stop(
+    sprintf(
+      paste0(
+        "Prediction block mismatch. Expected blocks: [%s]. Provided blocks: [%s]. ",
+        "Missing: [%s]. Unexpected: [%s]."
+      ),
+      paste(expected_prediction_blocks, collapse = ", "),
+      paste(provided_prediction_blocks, collapse = ", "),
+      paste(missing_prediction_blocks, collapse = ", "),
+      paste(unexpected_prediction_blocks, collapse = ", ")
+    ),
+    call. = FALSE
+  )
+}
+
 predict.diablo.tcga <- predict(diablo.tcga, newdata = data.test.tcga) # predict test data set using the final diablo model
 
 
@@ -250,4 +339,3 @@ confusion.mat.tcga # output the confusion matrix
 
 ## ----balanced_error_rate----------------------------------------------------
 get.BER(confusion.mat.tcga) # Calculate and output the BER
-
