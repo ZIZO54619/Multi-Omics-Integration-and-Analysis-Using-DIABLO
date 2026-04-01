@@ -226,6 +226,7 @@ diablo.tcga <- block.splsda(X, Y, ncomp = ncomp,
 for (block_name in names(diablo.tcga$loadings)) {
   output_file <- file.path(output_dir, paste0("loadings-", block_name, ".csv"))
   write.csv(diablo.tcga$loadings[[block_name]], output_file)
+  write.csv(diablo.tcga$loadings[[block_name]], paste0("loadings-", block_name, ".csv"))
 }
 
 
