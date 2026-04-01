@@ -35,11 +35,22 @@ library(ggplot2)     # For creating plots
 -   This section loads the data from CSV files, preprocesses it, and structures it for the DIABLO model.
 
 ```r
-# Set the working directory
-setwd(r"{D:\Multi-Omics\TCGA}")
+# Resolve data root from --data-root=... or default to <getwd()>/Dataset/TCGA
+resolve_data_root <- function() {
+  args <- commandArgs(trailingOnly = TRUE)
+  data_root_arg <- args[grepl("^--data-root=", args)]
+  if (length(data_root_arg) > 0) sub("^--data-root=", "", data_root_arg[[1]]) else file.path(getwd(), "Dataset", "TCGA")
+}
 
-# List directories in the working directory
-folders <- list.dirs(path = ".", full.names = TRUE, recursive = FALSE)
+data_root <- resolve_data_root()
+required_folders <- c("data.train", "data.test")
+missing_folders <- required_folders[!dir.exists(file.path(data_root, required_folders))]
+if (length(missing_folders) > 0) {
+  stop(sprintf("Missing required folder(s): %s", paste(missing_folders, collapse = ", ")))
+}
+
+# List directories in the data root
+folders <- list.dirs(path = data_root, full.names = TRUE, recursive = FALSE)
 data_set <- list() # Initialize an empty list to store data
 
 # Loop through each folder (representing a data type)
@@ -47,30 +58,46 @@ for (folder in folders) {
   folder_name <- basename(folder)  # Extract folder name
   folder_files <- list.files(path = folder, pattern = "\\.csv$", full.names = TRUE)  # List all CSV files in the folder
   folder_data <- list()  # Initialize list to hold data from each file
-  subtype <- NULL # Initialize the subtype vector
-  
   # Loop through each CSV file
   for (file in folder_files) {
     df <- read.csv(file, header = TRUE, row.names = 1) # Read csv data into dataframe
     name <- tools::file_path_sans_ext(basename(file)) # Extract file name without extension
-    
-    # Check if there is a 'Label' column, if so, convert to factor and remove it from dataframe
-    if ("Label" %in% colnames(df)) {
-        Label <- df$Label 
-        subtype <- factor(Label)
-        df <- df[, -which(names(df) == "Label")]
-        df <- sapply(df, as.numeric) # Convert all values in df to numeric
-    }
     row_names <- rownames(df)
     df_matrix <- as.matrix(df)
     rownames(df_matrix) <- row_names # set row names for matrix
     folder_data[[name]] <- df_matrix # add matrix to folder_data list
   }
-  folder_data$subtype <- subtype # add subtype factor
+  # subtype priority:
+  # 1) subtype.csv with Label/subtype/x column
+  # 2) fallback to Label column in one block file
+  # fail fast if subtype cannot be resolved
+  if ("subtype" %in% names(folder_data)) {
+    subtype_df <- as.data.frame(folder_data$subtype)
+    label_col <- intersect(c("Label", "subtype", "x"), colnames(subtype_df))
+    if (length(label_col) == 0) stop("subtype.csv exists but has no Label/subtype/x column")
+    folder_data$subtype <- factor(subtype_df[[label_col[[1]]]])
+  } else {
+    subtype <- NULL
+    for (nm in names(folder_data)) {
+      block_df <- as.data.frame(folder_data[[nm]])
+      if ("Label" %in% colnames(block_df)) {
+        subtype <- factor(block_df$Label)
+        folder_data[[nm]] <- as.matrix(block_df[, setdiff(colnames(block_df), "Label"), drop = FALSE])
+        break
+      }
+    }
+    if (is.null(subtype)) stop("Missing subtype labels for folder")
+    folder_data$subtype <- subtype
+  }
   data_set[[folder_name]] <- folder_data # add folder data to main data_set list
 }
 
 names(data_set) # Print the names of the data_set list
+
+# Preflight required blocks
+required_blocks <- c("mrna", "mirna", "protein")
+stopifnot(all(required_blocks %in% names(data_set$data.train)))
+stopifnot(all(required_blocks %in% names(data_set$data.test)))
 ```
 
 ## Extract the training data from the loaded data set.
@@ -198,10 +225,9 @@ diablo.tcga <- block.splsda(X, Y, ncomp = ncomp,
 
 ```r
 # Output the loadings for each omic layer
-write.csv(diablo.tcga$loadings$mRNA,"loadings-mRNA")
-write.csv(diablo.tcga$loadings$miRNA,"loadings-miRNA")
-write.csv(diablo.tcga$loadings$protein,"loadings-protein")
-write.csv(diablo.tcga$loadings$Y,"loadings-Y")
+for (block_name in names(diablo.tcga$loadings)) {
+  write.csv(diablo.tcga$loadings[[block_name]], paste0("loadings-", block_name, ".csv"))
+}
 ```
 
 ## Print the design matrix for the DIABLO model.
@@ -306,7 +332,8 @@ auc.diablo.tcga <- auroc(diablo.tcga, roc.block = "protein", roc.comp = 1,
 ```r
 # Extract the testing data
 data.test.tcga <- list(mrna = data_set$data.test$mrna, 
-                       mirna = data_set$data.test$mirna)
+                       mirna = data_set$data.test$mirna,
+                       protein = data_set$data.test$protein)
 ```
 
 # Predict Using the Test Data
@@ -314,6 +341,15 @@ data.test.tcga <- list(mrna = data_set$data.test$mrna,
 ## Use the DIABLO model to predict class labels for the test data set.
 
 ```r
+expected_prediction_blocks <- names(diablo.tcga$X)
+provided_prediction_blocks <- names(data.test.tcga)
+missing_prediction_blocks <- setdiff(expected_prediction_blocks, provided_prediction_blocks)
+unexpected_prediction_blocks <- setdiff(provided_prediction_blocks, expected_prediction_blocks)
+
+if (length(missing_prediction_blocks) > 0 || length(unexpected_prediction_blocks) > 0) {
+  stop("Prediction block mismatch between fitted model blocks and newdata blocks.")
+}
+
 predict.diablo.tcga <- predict(diablo.tcga, newdata = data.test.tcga) # predict test data set using the final diablo model
 ```
 
