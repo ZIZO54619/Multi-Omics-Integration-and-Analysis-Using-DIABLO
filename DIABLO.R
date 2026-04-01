@@ -299,6 +299,27 @@ data.test.tcga <- list(mrna = data_set$data.test$mrna,
 
 
 ## ----predict_test_data------------------------------------------------------
+expected_prediction_blocks <- names(diablo.tcga$X)
+provided_prediction_blocks <- names(data.test.tcga)
+missing_prediction_blocks <- setdiff(expected_prediction_blocks, provided_prediction_blocks)
+unexpected_prediction_blocks <- setdiff(provided_prediction_blocks, expected_prediction_blocks)
+
+if (length(missing_prediction_blocks) > 0 || length(unexpected_prediction_blocks) > 0) {
+  stop(
+    sprintf(
+      paste0(
+        "Prediction block mismatch. Expected blocks: [%s]. Provided blocks: [%s]. ",
+        "Missing: [%s]. Unexpected: [%s]."
+      ),
+      paste(expected_prediction_blocks, collapse = ", "),
+      paste(provided_prediction_blocks, collapse = ", "),
+      paste(missing_prediction_blocks, collapse = ", "),
+      paste(unexpected_prediction_blocks, collapse = ", ")
+    ),
+    call. = FALSE
+  )
+}
+
 predict.diablo.tcga <- predict(diablo.tcga, newdata = data.test.tcga) # predict test data set using the final diablo model
 
 

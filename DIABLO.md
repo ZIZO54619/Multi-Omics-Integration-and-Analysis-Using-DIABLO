@@ -341,6 +341,15 @@ data.test.tcga <- list(mrna = data_set$data.test$mrna,
 ## Use the DIABLO model to predict class labels for the test data set.
 
 ```r
+expected_prediction_blocks <- names(diablo.tcga$X)
+provided_prediction_blocks <- names(data.test.tcga)
+missing_prediction_blocks <- setdiff(expected_prediction_blocks, provided_prediction_blocks)
+unexpected_prediction_blocks <- setdiff(provided_prediction_blocks, expected_prediction_blocks)
+
+if (length(missing_prediction_blocks) > 0 || length(unexpected_prediction_blocks) > 0) {
+  stop("Prediction block mismatch between fitted model blocks and newdata blocks.")
+}
+
 predict.diablo.tcga <- predict(diablo.tcga, newdata = data.test.tcga) # predict test data set using the final diablo model
 ```
 

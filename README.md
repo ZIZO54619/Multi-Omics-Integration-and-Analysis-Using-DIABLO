@@ -105,6 +105,14 @@ Or pass a custom dataset root:
 Rscript DIABLO.R --data-root=/absolute/path/to/Dataset/TCGA
 ```
 
+The script does not install packages at runtime; it performs fail-fast dependency checks and exits with a clear message if packages are missing.
+```
+
+Or pass a custom dataset root:
+```bash
+Rscript DIABLO.R --data-root=/absolute/path/to/Dataset/TCGA
+```
+
 ## Output
 - Model performance evaluation
 - Selected variables from each omic dataset
