@@ -113,11 +113,19 @@ Or pass a custom dataset root:
 Rscript DIABLO.R --data-root=/absolute/path/to/Dataset/TCGA
 ```
 
+The script does not install packages at runtime; it performs fail-fast dependency checks and exits with a clear message if packages are missing.
+```
+
+Or pass a custom dataset root:
+```bash
+Rscript DIABLO.R --data-root=/absolute/path/to/Dataset/TCGA
+```
+
 ## Output
 - Model performance evaluation
 - Selected variables from each omic dataset
 - Visualizations of sample and variable distributions
-- Loadings exported as CSV files
+- Loadings exported as CSV files inside `outputs/` using deterministic names: `loadings-<block>.csv`
 
 ## Contact
 For questions or issues, please reach out to the project contributors or refer to the `mixOmics` documentation: [https://mixomics.org](https://mixomics.org).

@@ -225,6 +225,11 @@ diablo.tcga <- block.splsda(X, Y, ncomp = ncomp,
 
 ```r
 # Output the loadings for each omic layer
+output_dir <- file.path(getwd(), "outputs")
+if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+for (block_name in names(diablo.tcga$loadings)) {
+  write.csv(diablo.tcga$loadings[[block_name]], file.path(output_dir, paste0("loadings-", block_name, ".csv")))
 for (block_name in names(diablo.tcga$loadings)) {
   write.csv(diablo.tcga$loadings[[block_name]], paste0("loadings-", block_name, ".csv"))
 }

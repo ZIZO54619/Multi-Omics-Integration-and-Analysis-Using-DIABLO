@@ -69,6 +69,12 @@ data_root <- resolve_data_root()
 if (!dir.exists(data_root)) {
   stop(sprintf("Data root not found: %s", data_root), call. = FALSE)
 }
+
+output_dir <- file.path(getwd(), "outputs")
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
 required_folders <- c("data.train", "data.test")
 missing_folders <- required_folders[!dir.exists(file.path(data_root, required_folders))]
 if (length(missing_folders) > 0) {
@@ -218,6 +224,8 @@ diablo.tcga <- block.splsda(X, Y, ncomp = ncomp,
 ## ----export_loadings--------------------------------------------------------
 # Output the loadings for each omic layer
 for (block_name in names(diablo.tcga$loadings)) {
+  output_file <- file.path(output_dir, paste0("loadings-", block_name, ".csv"))
+  write.csv(diablo.tcga$loadings[[block_name]], output_file)
   write.csv(diablo.tcga$loadings[[block_name]], paste0("loadings-", block_name, ".csv"))
 }
 
